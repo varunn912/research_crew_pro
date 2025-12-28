@@ -43,7 +43,7 @@ class MultiProviderLLM:
     def gemini(self):
         if HAS_LANGCHAIN_GOOGLE:
             return ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
+                model="gemini-3-flash-preview",
                 google_api_key=os.getenv("GOOGLE_API_KEY"),
                 temperature=self.temperature,
                 convert_system_message_to_human=True 
@@ -89,3 +89,12 @@ def get_gemini_llm(temperature=0.7):
 def get_groq_llm(temperature=0.7):
     """Helper used by generic agents"""
     return MultiProviderLLM(temperature).groq()
+
+def get_ollama_llm(temperature=0.7):
+    """
+    ⚠️ LEGACY REDIRECT:
+    The Extractor Agent asks for Ollama, but we cannot run Ollama in the cloud.
+    We redirect this call to Gemini because it handles large context best.
+    """
+    print("🔄 Redirecting 'Ollama' request to Gemini (Cloud Mode)")
+    return MultiProviderLLM(temperature).gemini()
