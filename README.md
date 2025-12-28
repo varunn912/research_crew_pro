@@ -67,7 +67,7 @@ AutoResearch Crew enables:
 | -------- | ------------- | ------------------ | ------------------------------- |
 | 1️⃣      | Groq          | `llama-3.3-70b`    | High-speed, free-tier inference |
 | 2️⃣      | Google Gemini | `gemini-1.5-flash` | Reliable fallback provider      |
-| 3️⃣      | OpenAI        | `gpt-4o-mini`      | High-quality reasoning          |
+| 3️⃣      | Ollama        |   `llama-3.1`      | High-quality reasoning          |
 
 **Benefits**
 
