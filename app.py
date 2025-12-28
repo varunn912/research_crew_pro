@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 # =========================================================
 # 🔑 CRITICAL: LOAD SECRETS (ROBUST MODE)
 # =========================================================
-# We check for keys individually to ensure they are loaded correctly
-# even if the names are long or formatting is tricky.
+# We check for keys individually to ensure they are loaded correctly.
+# This MUST happen before importing CrewAI or LiteLLM.
 
 if hasattr(st, "secrets"):
     # 1. Groq API Key
@@ -33,30 +33,22 @@ if hasattr(st, "secrets"):
 load_dotenv()
 
 # --- MANDATORY LOCKDOWN: DISABLE TELEMETRY ---
+# Prevents network timeouts on Cloud
 os.environ["OTEL_SDK_DISABLED"] = "true" 
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
 # ---------------------------------------------------
 # 🚨 IMPORTS MUST HAPPEN AFTER KEYS ARE LOADED
 # ---------------------------------------------------
+# If you move these up, the app will CRASH on the cloud.
 from src.crew.research_crew import ResearchCrew
 from src.llm.multi_provider import MultiProviderLLM
 from src.translation import get_supported_languages
 from src.database import get_all_research, get_research_by_id, delete_research_record
 from src.audio.stt import speech_to_text
+from src.utils.media_factory import generate_multilingual_assets
 from fpdf import FPDF
 from gtts import gTTS
-
-# ... (The rest of your existing app.py code follows below) ...
-# ---------------------------------------------------
-
-# ... (The rest of your app.py code goes here) ...
-
-# ✅ NEW IMPORT: The Safe Media Factory
-from src.utils.media_factory import generate_multilingual_assets
-
-# Load environment variables
-load_dotenv()
 
 # Page config
 st.set_page_config(
@@ -93,9 +85,11 @@ def generate_pdf(text, filename):
         st.warning(f"Note: PDF generated with some character omissions. ({str(e)})")
         return None
 
-# --- ROBUST AUDIO GENERATOR (Legacy - Kept but superseded by Media Factory) ---
+# --- ROBUST AUDIO GENERATOR ---
 def generate_audio(text, lang='en'):
     try:
+        if lang not in ['en', 'es', 'fr', 'pt', 'de']:
+            lang = 'en'
         tts = gTTS(text=text[:3000], lang=lang, slow=False)
         audio_path = "output/research_summary.mp3"
         os.makedirs('output', exist_ok=True)
@@ -136,20 +130,23 @@ with st.sidebar:
     
     st.divider()
     
-    # --- LLM PROVIDER STATUS (Restored) ---
+    # --- LLM PROVIDER STATUS ---
     st.header("🤖 LLM Provider Status")
-    llm_manager = MultiProviderLLM()
-    active_providers = llm_manager.providers_available 
+    try:
+        llm_manager = MultiProviderLLM()
+        active_providers = llm_manager.providers_available 
 
-    if active_providers:
-        st.success(f"✅ {len(active_providers)} provider(s) active")
-        for p_id in active_providers:
-            p_data = llm_manager.PROVIDERS.get(p_id, {"name": p_id.title(), "priority": 0})
-            with st.expander(f"🔹 {p_data['name']}"):
-                st.write(f"**Priority:** Level {p_data['priority']}")
-                st.write(f"**Status:** Online")
-    else:
-        st.error("❌ No LLM providers found.")
+        if active_providers:
+            st.success(f"✅ {len(active_providers)} provider(s) active")
+            for p_id in active_providers:
+                p_data = llm_manager.PROVIDERS.get(p_id, {"name": p_id.title(), "priority": 0})
+                with st.expander(f"🔹 {p_data['name']}"):
+                    st.write(f"**Priority:** Level {p_data['priority']}")
+                    st.write(f"**Status:** Online")
+        else:
+            st.error("❌ No LLM providers found.")
+    except Exception as e:
+        st.warning("Could not check LLM status.")
 
 # --- MAIN CONTENT ---
 if page == "🔍 New Research":
@@ -197,7 +194,6 @@ if page == "🔍 New Research":
             st.session_state.research_topic = topic
             
             try:
-                # Use standard Status Spinner (Thread-Safe)
                 with st.status("🤖 Agents are working...", expanded=True) as status:
                     st.write("🔄 Initializing Specialist Agents...")
                     st.write("📡 Connecting to Knowledge Base...")
@@ -210,16 +206,14 @@ if page == "🔍 New Research":
                 if results and 'report_path' in results:
                     st.success("✅ Research Completed Successfully!")
                     
-                    # --- NEW: GENERATE MULTILINGUAL ASSETS (TEXT + AUDIO) ---
-                    # This runs the new robust factory that does not depend on OpenAI
-                    with st.spinner("🎧 Generating Multilingual Audio & Reports (En, Hi, Ar, Es, Fr)..."):
+                    # --- GENERATE ASSETS ---
+                    with st.spinner("🎧 Generating Multilingual Audio & Reports..."):
                         multilingual_data = generate_multilingual_assets(results['report_path'])
 
                     # --- OUTPUT TABS ---
-                    # We renamed the third tab to reflect its new powers
                     tab1, tab2, tab3 = st.tabs(["📝 English Report", "📄 PDF Preview", "🌍 Multilingual Hub"])
 
-                    # TAB 1: Main English Markdown
+                    # TAB 1: Main Markdown
                     with tab1:
                         if os.path.exists(results['report_path']):
                             with open(results['report_path'], 'r', encoding='utf-8') as f:
@@ -229,11 +223,10 @@ if page == "🔍 New Research":
                         else:
                             st.error("Report file missing.")
 
-                    # TAB 2: English PDF Preview
+                    # TAB 2: PDF Preview
                     with tab2:
                         if export_pdf and os.path.exists(results['report_path']):
                             pdf_path = results['report_path'].replace(".md", ".pdf")
-                            # Generate PDF using the FPDF function (good for English)
                             if not os.path.exists(pdf_path):
                                 with st.spinner("Generating professional PDF..."):
                                     with open(results['report_path'], 'r', encoding='utf-8') as f:
@@ -249,57 +242,39 @@ if page == "🔍 New Research":
                         else:
                             st.info("PDF generation disabled or source file missing.")
 
-                    # TAB 3: THE NEW ROBUST AUDIO & TRANSLATION HUB
+                    # TAB 3: Multilingual Hub
                     with tab3:
                         if multilingual_data:
                             st.write("### 🌐 Select Language")
-                            
-                            # 1. Language Selector
                             selected_lang_key = st.selectbox("Choose a language:", list(multilingual_data.keys()))
-                            
-                            # 2. Get Data Safe Check
                             lang_data = multilingual_data.get(selected_lang_key)
                             
                             if lang_data:
                                 col1, col2 = st.columns([1, 1])
                                 
-                                # --- Audio Section ---
                                 with col1:
                                     st.subheader("🎧 Audio Summary")
                                     if os.path.exists(lang_data['audio_path']):
                                         st.audio(lang_data['audio_path'])
                                         with open(lang_data['audio_path'], "rb") as audio_file:
-                                            st.download_button(
-                                                label=f"⬇️ Download Audio ({selected_lang_key})",
-                                                data=audio_file,
-                                                file_name=f"Audio_{selected_lang_key}.mp3",
-                                                mime="audio/mp3"
-                                            )
+                                            st.download_button("⬇️ Download Audio", audio_file, file_name=f"Audio_{selected_lang_key}.mp3", mime="audio/mp3")
                                     else:
-                                        st.info("Audio generation skipped for this language.")
+                                        st.info("Audio skipped.")
 
-                                # --- Report Section (Replaces PDF for complex languages) ---
                                 with col2:
                                     st.subheader("📄 Translated Report")
                                     if os.path.exists(lang_data['report_path']):
                                         st.success(f"Translation ready.")
                                         with open(lang_data['report_path'], "rb") as report_file:
-                                            st.download_button(
-                                                label=f"⬇️ Download Report ({selected_lang_key})",
-                                                data=report_file,
-                                                file_name=f"Report_{selected_lang_key}.md",
-                                                mime="text/markdown"
-                                            )
+                                            st.download_button("⬇️ Download Report", report_file, file_name=f"Report_{selected_lang_key}.md", mime="text/markdown")
                                     else:
-                                         st.warning("Translation file unavailable.")
+                                        st.warning("Translation unavailable.")
 
-                                # --- Text Preview ---
                                 st.divider()
                                 st.caption(f"Text Preview ({selected_lang_key}):")
                                 st.text_area("", lang_data['text'], height=300)
-                            
                         else:
-                            st.warning("Multilingual assets could not be generated. Please check your internet connection.")
+                            st.warning("Multilingual assets not available.")
                 else:
                     st.error("Crew failed to produce a final report.")
             
