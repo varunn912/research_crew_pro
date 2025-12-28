@@ -9,9 +9,6 @@ from dotenv import load_dotenv
 # =========================================================
 # 🔑 CRITICAL: LOAD SECRETS (ROBUST MODE)
 # =========================================================
-# We check for keys individually to ensure they are loaded correctly.
-# This MUST happen before importing CrewAI or LiteLLM.
-
 if hasattr(st, "secrets"):
     # 1. Groq API Key
     if "GROQ_API_KEY" in st.secrets:
@@ -32,15 +29,22 @@ if hasattr(st, "secrets"):
 # --- OPTIONAL: Load local .env if running on laptop ---
 load_dotenv()
 
+# =========================================================
+# 🛑 LOOP BREAKER: DUMMY OPENAI KEY
+# =========================================================
+# CrewAI throws "Error importing native provider" if this is missing.
+# We set it to "NA" to pass the startup check. 
+# Since we use 'groq/' and 'gemini/' models, this key is NEVER used.
+if "OPENAI_API_KEY" not in os.environ:
+    os.environ["OPENAI_API_KEY"] = "NA"
+
 # --- MANDATORY LOCKDOWN: DISABLE TELEMETRY ---
-# Prevents network timeouts on Cloud
 os.environ["OTEL_SDK_DISABLED"] = "true" 
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
 # ---------------------------------------------------
 # 🚨 IMPORTS MUST HAPPEN AFTER KEYS ARE LOADED
 # ---------------------------------------------------
-# If you move these up, the app will CRASH on the cloud.
 from src.crew.research_crew import ResearchCrew
 from src.llm.multi_provider import MultiProviderLLM
 from src.translation import get_supported_languages
