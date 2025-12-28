@@ -1,3 +1,5 @@
+litellm
+tiktoken
 crewai
 crewai-tools
 streamlit
