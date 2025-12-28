@@ -25,3 +25,4 @@ youtube-transcript-api
 yt-dlp
 SQLAlchemy
 Markdown
+google-generativeai
