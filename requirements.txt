@@ -12,3 +12,5 @@ python-dotenv
 duckduckgo-search
 pydantic
 plotly
+matplotlib
+seaborn
