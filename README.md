@@ -33,7 +33,7 @@ AutoResearch Crew enables:
 
 * Automated multi-agent collaboration
 * Real-time fact-checking and analysis
-* Multilingual processing (15+ languages)
+* Multilingual processing (05 languages)
 * Smart exports (Google Docs, Notion, PDF)
 * Advanced analytics and voice input
 
@@ -63,11 +63,11 @@ AutoResearch Crew enables:
 
 ### 🔄 Multi-Provider LLM System
 
-| Priority | Provider      | Model              | Purpose                         |
-| -------- | ------------- | ------------------ | ------------------------------- |
-| 1️⃣      | Groq          | `llama-3.3-70b`    | High-speed, free-tier inference |
-| 2️⃣      | Google Gemini |  `gemini-1.5-flash'| Reliable fallback provider      |
-| 3️⃣      | Ollama        |   `llama-3.1`      | High-quality reasoning          |
+| Priority | Provider      | Model                    | Purpose                         |
+| -------- | ------------- | ------------------------ | ------------------------------- |
+| 1️⃣      | Groq          | `llama-3.3-70b`          | High-speed, free-tier inference |
+| 2️⃣      | Google Gemini | `gemini-3-flash-preview` | Reliable fallback provider      |
+| 3️⃣      | Ollama        | `llama-3.1`              | High-quality reasoning          |
 
 **Benefits**
 
@@ -80,7 +80,7 @@ AutoResearch Crew enables:
 
 ### 🌍 Multi-Language Support
 
-* 15+ supported languages
+* 5 supported languages
 * Real-time translation using `deep-translator`
 * RTL language handling (Arabic, Hebrew)
 * Multilingual PDF & audio (TTS) output
