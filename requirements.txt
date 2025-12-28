@@ -2,6 +2,8 @@ crewai
 crewai-tools
 streamlit
 groq
+langchain
+langchain-community
 langchain-google-genai
 gTTS
 deep-translator
