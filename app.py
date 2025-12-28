@@ -7,26 +7,37 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # =========================================================
-# 🔑 CRITICAL: LOAD SECRETS FOR CLOUD DEPLOYMENT
+# 🔑 CRITICAL: LOAD SECRETS (ROBUST MODE)
 # =========================================================
-# Streamlit Cloud stores keys in st.secrets. We must manually 
-# copy them to os.environ so CrewAI and Groq can find them.
+# We check for keys individually to ensure they are loaded correctly
+# even if the names are long or formatting is tricky.
+
 if hasattr(st, "secrets"):
-    for key, value in st.secrets.items():
-        if isinstance(value, str):
-            os.environ[key] = value
-        elif isinstance(value, dict):
-            for sub_key, sub_value in value.items():
-                os.environ[sub_key] = sub_value
+    # 1. Groq API Key
+    if "GROQ_API_KEY" in st.secrets:
+        os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+        
+    # 2. Google Gemini API Key
+    if "GOOGLE_API_KEY" in st.secrets:
+        os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+        
+    # 3. Tavily API Key (Crucial for search)
+    if "TAVILY_API_KEY" in st.secrets:
+        os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
+    
+    # 4. Serper API Key (Backup search)
+    if "SERPER_API_KEY" in st.secrets:
+        os.environ["SERPER_API_KEY"] = st.secrets["SERPER_API_KEY"]
 
 # --- OPTIONAL: Load local .env if running on laptop ---
 load_dotenv()
 
 # --- MANDATORY LOCKDOWN: DISABLE TELEMETRY ---
-# (We removed the localhost redirect because it crashes the cloud)
 os.environ["OTEL_SDK_DISABLED"] = "true" 
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
+# ---------------------------------------------------
+# 🚨 IMPORTS MUST HAPPEN AFTER KEYS ARE LOADED
 # ---------------------------------------------------
 from src.crew.research_crew import ResearchCrew
 from src.llm.multi_provider import MultiProviderLLM
@@ -35,6 +46,8 @@ from src.database import get_all_research, get_research_by_id, delete_research_r
 from src.audio.stt import speech_to_text
 from fpdf import FPDF
 from gtts import gTTS
+
+# ... (The rest of your existing app.py code follows below) ...
 # ---------------------------------------------------
 
 # ... (The rest of your app.py code goes here) ...
