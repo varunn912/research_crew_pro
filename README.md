@@ -260,6 +260,6 @@ Contributions are welcome!
 
 📫 **Support:** [support@autoresearch.ai](mailto:support@autoresearch.ai)
 
----
+DEMO- " https://drive.google.com/file/d/1DPeB1aISSbZHJKaSWoMi3bdQgcJyimTz/view?usp=drive_link "
 
 🧠 *AutoResearch Crew — redefining AI-powered research through multi-agent collaboration.*
