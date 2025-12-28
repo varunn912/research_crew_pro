@@ -14,7 +14,7 @@ class ResearchCrew:
         self.output_log_file = "output/crew_execution.log"
 
     def run(self):
-        # 1. Initialize Agents (They now auto-fetch their specific LLMs)
+        # 1. Initialize Agents
         researcher = ResearchAgent().get_agent()
         analyst = TrendAnalystAgent().get_agent()
         extractor = ContentExtractorAgent().get_agent()
@@ -30,7 +30,7 @@ class ResearchCrew:
             agent=researcher
         )
 
-        # Task 2: Trend Analysis (DeepSeek)
+        # Task 2: Trend Analysis
         analysis_task = Task(
             description=f"Analyze the research data for '{self.topic}'. Identify emerging trends, patterns, and future predictions.",
             expected_output="A trend analysis report highlighting patterns and market shifts.",
@@ -38,7 +38,7 @@ class ResearchCrew:
             context=[research_task]
         )
 
-        # Task 3: Content Extraction (Gemini)
+        # Task 3: Content Extraction
         extraction_task = Task(
             description=f"Extract relevant technical details and dense information related to '{self.topic}'.",
             expected_output="Structured extracted data and technical summaries.",
@@ -46,7 +46,7 @@ class ResearchCrew:
             context=[research_task]
         )
 
-        # Task 4: Summarization (Qwen)
+        # Task 4: Summarization
         summary_task = Task(
             description=f"Summarize the analysis and extracted data into concise executive points in {self.language}.",
             expected_output="A set of concise executive summaries and bullet points.",
@@ -54,28 +54,28 @@ class ResearchCrew:
             context=[analysis_task, extraction_task]
         )
 
-        # Task 5: Writing (Qwen)
-        write_task = Task(
-            description=f"Write a comprehensive professional report on '{self.topic}' in {self.language}. Use the analysis and summaries provided.",
-            expected_output=f"A high-quality markdown research report in {self.language}.",
-            agent=writer,
-            context=[summary_task, analysis_task]
+        # Task 5: Fact Checking (Now runs BEFORE writing)
+        fact_check_task = Task(
+            description=f"Verify the research findings, analysis, and summaries. Ensure statistics, facts, and logical consistency are accurate before the report is written.",
+            expected_output="A verified and corrected set of data points and summaries, ready for writing.",
+            agent=fact_checker,
+            context=[research_task, analysis_task, summary_task]
         )
 
-        # Task 6: Fact Checking (DeepSeek)
-        fact_check_task = Task(
-            description=f"Review the draft report. Verify statistics, facts, and logical consistency. Correct any hallucinations.",
-            expected_output=f"A finalized, fact-checked, and polished research report in {self.language}.",
-            agent=fact_checker,
-            context=[write_task],
+        # Task 6: Writing (Now the FINAL Step)
+        write_task = Task(
+            description=f"Write a comprehensive professional report on '{self.topic}' in {self.language}. Use the verified facts and analysis provided.",
+            expected_output=f"A high-quality markdown research report in {self.language}.",
+            agent=writer,
+            context=[fact_check_task], # Depends on the Fact Checker's output
             output_file=f"output/{self.topic.replace(' ', '_')}_final.md"
         )
 
-        # 3. Assemble the Crew
+        # 3. Assemble the Crew (Order Updated)
         crew = Crew(
-            agents=[researcher, analyst, extractor, summarizer, writer, fact_checker],
-            tasks=[research_task, analysis_task, extraction_task, summary_task, write_task, fact_check_task],
-            process=Process.sequential,  # Agents work one after another
+            agents=[researcher, analyst, extractor, summarizer, fact_checker, writer],
+            tasks=[research_task, analysis_task, extraction_task, summary_task, fact_check_task, write_task],
+            process=Process.sequential,
             verbose=True,
             output_log_file=self.output_log_file
         )
@@ -83,8 +83,7 @@ class ResearchCrew:
         # 4. Kickoff!
         result = crew.kickoff()
         
-        # Return the final file path for the UI to display
         return {
             "result": result, 
-            "report_path": fact_check_task.output_file
+            "report_path": write_task.output_file # The Writer now produces the final file
         }
