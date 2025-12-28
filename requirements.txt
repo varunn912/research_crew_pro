@@ -15,3 +15,10 @@ plotly
 matplotlib
 seaborn
 langdetect
+reportlab
+beautifulsoup4
+SpeechRecognition
+pydub
+youtube-transcript-api
+yt-dlp
+SQLAlchemy
