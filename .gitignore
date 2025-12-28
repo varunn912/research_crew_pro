@@ -1,0 +1,76 @@
+# =======================================================
+# 🛡️ SECURITY & SECRETS (CRITICAL)
+# =======================================================
+.env
+.env.local
+.streamlit/secrets.toml
+*.key
+*.pem
+
+# =======================================================
+# 🐍 PYTHON & VIRTUAL ENVIRONMENTS
+# =======================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Block your specific environment
+venv311/
+venv/
+env/
+ENV/
+
+# =======================================================
+# 🧠 CREWAI & DATABASE
+# =======================================================
+# Local SQLite databases (Research History)
+*.db
+*.sqlite3
+*.sqlite
+
+# CrewAI execution logs
+logs/
+*.log
+
+# =======================================================
+# 🌊 STREAMLIT
+# =======================================================
+# Ignore Streamlit cache
+.streamlit/*
+# BUT keep the config file if you have one (optional)
+!.streamlit/config.toml
+
+# =======================================================
+# 📂 GENERATED OUTPUTS (PDFs, Audio, Markdown)
+# =======================================================
+# Ignore all generated files in the output folder...
+output/*
+# ...BUT keep the empty folder structure for the repo
+!output/.gitkeep
+
+# =======================================================
+# 💻 IDE & OS FILES
+# =======================================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

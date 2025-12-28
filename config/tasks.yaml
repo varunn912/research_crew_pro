@@ -1,0 +1,58 @@
+research_task:
+  description: >
+    Conduct a multi-layered search on {topic} to gather deep technical data, 
+    recent news, and industry statistics. Focus on finding high-authority 
+    sources and diverse perspectives.
+  expected_output: >
+    A structured list of at least 10-15 key research findings with their 
+    corresponding URLs and a brief note on the credibility of each source.
+  agent: researcher
+
+extraction_task:
+  description: >
+    Using the sources identified in the research task, extract full technical 
+    specifications, methodologies, and specific data points. Ignore irrelevant 
+    webpage noise like advertisements or navigation menus.
+  expected_output: >
+    A clean, structured collection of technical data points and raw text 
+    summaries extracted directly from the provided source links.
+  agent: extractor
+
+fact_check_task:
+  description: >
+    Review all data gathered so far regarding {topic}. Cross-reference 
+    every claim against Serper.dev and Wikipedia to ensure absolute accuracy. 
+    Identify any speculative or unverified information.
+  expected_output: >
+    A verification audit report including a 'Confidence Score' for each 
+    major claim and a list of any rejected or flagged misinformation.
+  agent: fact_checker
+
+trend_analysis_task:
+  description: >
+    Analyze the verified data to identify emerging patterns and 3-year 
+    trajectories. Use the internal visualization tools to create data 
+    structures ready for chart generation.
+  expected_output: >
+    A strategic trend report including at least three major hypotheses 
+    for the future of {topic}, supported by data-driven evidence.
+  agent: analyst
+
+summary_task:
+  description: >
+    Synthesize all findings into a high-level executive briefing. 
+    Ensure the most critical insights are presented first.
+  expected_output: >
+    A concise 3-paragraph executive summary that captures the essence 
+    of the entire research project.
+  agent: summarizer
+
+writing_task:
+  description: >
+    Assemble all verified data, trends, and summaries into a final 
+    professional research report. Ensure the report follows a logical 
+    hierarchy and is written in {language}.
+  expected_output: >
+    A comprehensive Markdown-formatted report featuring an Executive Summary, 
+    Table of Contents, Technical Deep-Dive, and Future Outlook sections.
+  agent: writer
