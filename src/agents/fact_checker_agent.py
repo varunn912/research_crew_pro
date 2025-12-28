@@ -24,30 +24,32 @@ class WikipediaTool(BaseTool):
         wiki = WikipediaQueryRun(api_wrapper=api_wrapper)
         return wiki.run(query)
 
-# --- AGENT CREATION ---
-def create_fact_checker_agent(topic: str, show_logs: bool = True) -> Agent:
-    try:
-        with open('config/agents.yaml', 'r') as f:
-            config = yaml.safe_load(f)['fact_checker_agent']
-    except:
-        config = {
-            'role': 'Fact Verification Expert',
-            'goal': f'Verify accuracy on {topic}',
-            'backstory': 'Meticulous investigator ensuring 0% misinformation.'
-        }
+# --- AGENT CLASS ---
+class FactCheckerAgent:
+    def get_agent(self):
+        try:
+            with open('config/agents.yaml', 'r') as f:
+                config = yaml.safe_load(f)['fact_checker_agent']
+        except:
+            config = {
+                'role': 'Fact Verification Expert',
+                'goal': 'Verify accuracy on {topic}',
+                'backstory': 'Meticulous investigator ensuring 0% misinformation.'
+            }
 
-    # Initialize tools as BaseTool instances
-    serper_tool = SerperDevTool()
-    wiki_tool = WikipediaTool() # Using our wrapper
-    
-    llm = get_fact_checker_llm()
+        # Initialize tools
+        serper_tool = SerperDevTool()
+        wiki_tool = WikipediaTool()
+        
+        # Use DeepSeek (Fact Checker LLM) for logic
+        llm = get_fact_checker_llm()
 
-    return Agent(
-        role=config['role'],
-        goal=config['goal'].format(topic=topic),
-        backstory=config['backstory'],
-        llm=llm,
-        tools=[serper_tool, wiki_tool], # Both are now valid BaseTool instances
-        verbose=show_logs,
-        allow_delegation=False
-    )
+        return Agent(
+            role=config['role'],
+            goal=config['goal'],
+            backstory=config['backstory'],
+            llm=llm,
+            tools=[serper_tool, wiki_tool],
+            verbose=True,
+            allow_delegation=False
+        )

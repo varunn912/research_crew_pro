@@ -1,5 +1,4 @@
 import os
-import yaml
 from typing import Type
 from pydantic import BaseModel, Field
 from crewai import Agent
@@ -7,7 +6,7 @@ from crewai.tools import BaseTool
 from langchain_community.tools import DuckDuckGoSearchRun
 from src.llm.multi_provider import get_researcher_llm
 
-# --- 1. DEFINE TOOLS (Keep your custom logic) ---
+# --- 1. DEFINE TOOLS (Preserved Custom Logic) ---
 
 class WebSearchInput(BaseModel):
     query: str = Field(..., description="The search query for Tavily.")
@@ -46,7 +45,7 @@ class DuckDuckGoTool(BaseTool):
         except Exception as e:
             return f"DuckDuckGo search error: {str(e)}"
 
-# --- 2. DEFINE THE AGENT CLASS (The Fix) ---
+# --- 2. AGENT CLASS ---
 
 class ResearchAgent:
     def get_agent(self):
