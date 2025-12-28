@@ -6,20 +6,38 @@ import base64
 from datetime import datetime
 from dotenv import load_dotenv
 
-# --- MANDATORY LOCKDOWN: REDIRECT ALL OPENAI CALLS ---
-os.environ["OPENAI_API_BASE"] = "http://localhost:1234/v1" 
-os.environ["OPENAI_API_KEY"] = "NA"
+# =========================================================
+# 🔑 CRITICAL: LOAD SECRETS FOR CLOUD DEPLOYMENT
+# =========================================================
+# Streamlit Cloud stores keys in st.secrets. We must manually 
+# copy them to os.environ so CrewAI and Groq can find them.
+if hasattr(st, "secrets"):
+    for key, value in st.secrets.items():
+        if isinstance(value, str):
+            os.environ[key] = value
+        elif isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                os.environ[sub_key] = sub_value
+
+# --- OPTIONAL: Load local .env if running on laptop ---
+load_dotenv()
+
+# --- MANDATORY LOCKDOWN: DISABLE TELEMETRY ---
+# (We removed the localhost redirect because it crashes the cloud)
 os.environ["OTEL_SDK_DISABLED"] = "true" 
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
-# ---------------------------------------------------
 
+# ---------------------------------------------------
 from src.crew.research_crew import ResearchCrew
 from src.llm.multi_provider import MultiProviderLLM
 from src.translation import get_supported_languages
 from src.database import get_all_research, get_research_by_id, delete_research_record
-from src.audio.stt import speech_to_text  
+from src.audio.stt import speech_to_text
 from fpdf import FPDF
 from gtts import gTTS
+# ---------------------------------------------------
+
+# ... (The rest of your app.py code goes here) ...
 
 # ✅ NEW IMPORT: The Safe Media Factory
 from src.utils.media_factory import generate_multilingual_assets
