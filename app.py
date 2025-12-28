@@ -7,48 +7,52 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # =========================================================
-# 🔑 CRITICAL: LOAD SECRETS (ROBUST MODE)
+# 🛡️ GLOBAL OVERRIDE: FORCE GROQ AS DEFAULT ENGINE
 # =========================================================
+# This block MUST run before any other imports to stop the app 
+# from ever contacting OpenAI's servers.
+
+# 1. Load Secrets directly into Environment
 if hasattr(st, "secrets"):
-    # 1. Groq API Key
     if "GROQ_API_KEY" in st.secrets:
         os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
-        
-    # 2. Google Gemini API Key
     if "GOOGLE_API_KEY" in st.secrets:
         os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
-        
-    # 3. Tavily API Key
     if "TAVILY_API_KEY" in st.secrets:
         os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
-    
-    # 4. Serper API Key
     if "SERPER_API_KEY" in st.secrets:
         os.environ["SERPER_API_KEY"] = st.secrets["SERPER_API_KEY"]
+
+# 2. THE "GROQ MASQUERADE" (Enhanced)
+# We map OpenAI's variables to Groq so that if CrewAI defaults 
+# to "OpenAI", it actually hits Groq.
+if os.getenv("GROQ_API_KEY"):
+    # The Key
+    os.environ["OPENAI_API_KEY"] = os.environ["GROQ_API_KEY"]
+    
+    # The URL (Targeting Groq)
+    os.environ["OPENAI_API_BASE"] = "https://api.groq.com/openai/v1"
+    
+    # The Model (Targeting Llama 3)
+    os.environ["OPENAI_MODEL_NAME"] = "llama-3.3-70b-versatile"
+    
+    # ⚠️ LiteLLM Specific Overrides (Crucial for Cloud)
+    os.environ["LITELLM_API_KEY"] = os.environ["GROQ_API_KEY"]
+    os.environ["LITELLM_API_BASE"] = "https://api.groq.com/openai/v1"
+
+else:
+    # Fallback to prevent startup crash (but research will fail)
+    os.environ["OPENAI_API_KEY"] = "NA"
+
+# 3. Disable Telemetry
+os.environ["OTEL_SDK_DISABLED"] = "true" 
+os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
 # --- OPTIONAL: Load local .env ---
 load_dotenv()
 
-# =========================================================
-# 🎭 THE GROQ MASQUERADE (FIX FOR ERROR 401)
-# =========================================================
-# If CrewAI tries to default to OpenAI, we redirect it to Groq.
-# This prevents the "Incorrect API Key" crash by giving it a working path.
-
-if "GROQ_API_KEY" in os.environ:
-    os.environ["OPENAI_API_KEY"] = os.environ["GROQ_API_KEY"]
-    os.environ["OPENAI_API_BASE"] = "https://api.groq.com/openai/v1"
-    os.environ["OPENAI_MODEL_NAME"] = "llama-3.3-70b-versatile"
-else:
-    # Last resort fallback if Groq is missing (prevents crash, might fail later)
-    os.environ["OPENAI_API_KEY"] = "NA"
-
-# --- DISABLE TELEMETRY ---
-os.environ["OTEL_SDK_DISABLED"] = "true" 
-os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
-
 # ---------------------------------------------------
-# 🚨 IMPORTS MUST HAPPEN AFTER KEYS ARE LOADED
+# 🚨 IMPORTS MUST HAPPEN AFTER CONFIGURATION
 # ---------------------------------------------------
 from src.crew.research_crew import ResearchCrew
 from src.llm.multi_provider import MultiProviderLLM
@@ -204,6 +208,7 @@ if page == "🔍 New Research":
                     st.write("🔄 Initializing Specialist Agents...")
                     st.write("📡 Connecting to Knowledge Base...")
                     
+                    # ⚠️ CRITICAL: Ensure NO default usage
                     crew_engine = ResearchCrew(topic=topic, language=selected_language, show_logs=True)
                     results = crew_engine.run()
                     status.update(label="✅ All Agents Finished!", state="complete", expanded=False)
