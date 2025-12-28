@@ -14,3 +14,4 @@ pydantic
 plotly
 matplotlib
 seaborn
+langdetect
