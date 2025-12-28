@@ -19,7 +19,7 @@ def _transcribe_with_gemini(audio_bytes: bytes) -> str:
             raise Exception("GOOGLE_API_KEY not found")
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-3-flash-preview")
         
         # Gemini accepts raw audio data blobs
         response = model.generate_content([
