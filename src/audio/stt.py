@@ -1,130 +1,145 @@
 import os
-import io
-import google.generativeai as genai
+import openai
 import groq
+import io
 from typing import Optional
 
-# =========================================================
-# 🎙️ ROBUST SPEECH-TO-TEXT (Gemini Primary -> Groq Backup)
-# =========================================================
+# --- Client Initialization ---
+# We initialize both clients. They will automatically read the keys from .env
 
-def _transcribe_with_gemini(audio_bytes: bytes) -> str:
-    """
-    Primary method: Uses Google Gemini 1.5 Flash for transcription.
-    Gemini is natively multimodal and handles audio directly.
-    """
-    try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise Exception("GOOGLE_API_KEY not found")
+# Initialize Groq Client
+try:
+    groq_client = groq.Groq()
+    groq_api_valid = True
+    print("Groq client initialized.")
+except Exception as e:
+    print(f"Warning: Groq client could not be initialized. {e}")
+    groq_client = None
+    groq_api_valid = False
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-3-flash-preview")
-        
-        # Gemini accepts raw audio data blobs
-        response = model.generate_content([
-            "Transcribe this audio file accurately. Output ONLY the spoken text. Do not add any conversational filler or descriptions.",
-            {
-                "mime_type": "audio/wav", # Streamlit audio recorder usually outputs WAV-compatible bytes
-                "data": audio_bytes
-            }
-        ])
-        
-        return response.text.strip()
-    except Exception as e:
-        raise Exception(f"Gemini STT Failed: {str(e)}")
+# Initialize OpenAI Client
+try:
+    openai_client = openai.OpenAI()
+    openai_api_valid = True
+    print("OpenAI client initialized.")
+except Exception as e:
+    print(f"Warning: OpenAI client could not be initialized. {e}")
+    openai_client = None
+    openai_api_valid = False
 
-def _transcribe_with_groq(audio_bytes: bytes, language: str = 'en') -> str:
-    """
-    Backup method: Uses Groq's Whisper-large-v3 model.
-    Extremely fast and accurate backup.
-    """
-    try:
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise Exception("GROQ_API_KEY not found")
 
-        client = groq.Groq(api_key=api_key)
-        
-        # Create a virtual file for the API
-        audio_file = io.BytesIO(audio_bytes)
-        audio_file.name = "audio.wav" 
-        
-        transcription = client.audio.transcriptions.create(
-            model="whisper-large-v3",
-            file=audio_file,
-            language=language
-        )
-        return transcription.text
-    except Exception as e:
-        raise Exception(f"Groq STT Failed: {str(e)}")
-
-def speech_to_text(audio_data, language: str = 'en') -> str:
+def speech_to_text(audio_bytes: bytes, language: str = 'en') -> Optional[str]:
     """
-    Main entry point for Speech-to-Text.
-    Accepts either raw bytes or a file path string.
-    
-    Strategy:
-    1. Try Gemini (Primary)
-    2. Try Groq (Backup)
-    3. Return Error if both fail
+    Convert speech audio bytes to text using a primary (Groq) and fallback (OpenAI) API.
+    This version fails fast on authentication errors.
     """
     
-    # 1. Normalize Input (Convert file path to bytes if necessary)
-    audio_bytes = None
-    if isinstance(audio_data, str):
-        # It's a file path
-        if os.path.exists(audio_data):
-            with open(audio_data, "rb") as f:
-                audio_bytes = f.read()
-        else:
-            return "❌ Error: Audio file path not found."
-    elif isinstance(audio_data, bytes):
-        # It's already bytes
-        audio_bytes = audio_data
-    else:
-        return "❌ Error: Invalid audio input format."
-
-    if not audio_bytes:
-        return "❌ Error: Empty audio data."
-
-    # 2. Attempt Transcription (Waterfall Logic)
-    errors = []
-
-    # --- Attempt 1: Gemini ---
+    # Create a file-like object from the in-memory audio bytes
     try:
-        # print("🎙️ Attempting Gemini STT...")
-        return _transcribe_with_gemini(audio_bytes)
+        audio_io = io.BytesIO(audio_bytes)
+        audio_io.name = "audio.webm" 
     except Exception as e:
-        # print(f"⚠️ Gemini STT failed: {e}")
-        errors.append(str(e))
+        print(f"❌ Error creating audio buffer: {e}")
+        return f"Error processing audio data: {e}"
 
-    # --- Attempt 2: Groq ---
-    try:
-        # print("🎙️ Falling back to Groq STT...")
-        return _transcribe_with_groq(audio_bytes, language)
-    except Exception as e:
-        # print(f"⚠️ Groq STT failed: {e}")
-        errors.append(str(e))
+    groq_error = None
+    openai_error = None
 
-    # 3. Final Failure State
-    return f"❌ Transcription failed. Errors: {'; '.join(errors)}"
+    # --- Try Groq First (Primary) ---
+    if groq_api_valid:
+        print("Attempting transcription with Groq...")
+        try:
+            audio_io.seek(0) # Reset buffer
+            transcription = groq_client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=("audio.webm", audio_io.read()),
+                language=language
+            )
+            print("✅ Groq transcription successful.")
+            return transcription.text
+        
+        except groq.AuthenticationError:
+            print("❌ Groq Authentication Error.")
+            # This is a fatal error for Groq. Stop and report it.
+            return "Error: Groq Authentication Error. Check GROQ_API_KEY."
+        except groq.RateLimitError as e:
+            print("⚠️ Groq Rate Limit Error. Trying OpenAI...")
+            groq_error = "Groq rate limit exceeded."
+        except Exception as e:
+            print(f"⚠️ Groq STT error: {e}. Trying OpenAI...")
+            groq_error = str(e)
+    
+    # --- Try OpenAI Second (Fallback) ---
+    # This block will run if Groq is not valid OR if it failed with a non-auth error
+    if openai_api_valid:
+        print("Attempting transcription with OpenAI...")
+        try:
+            audio_io.seek(0) # Reset buffer
+            transcription = openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_io,
+                language=language
+            )
+            print("✅ OpenAI transcription successful.")
+            return transcription.text
+            
+        except openai.AuthenticationError:
+            print("❌ OpenAI Authentication Error.")
+            # This is a fatal error for OpenAI. Stop and report it.
+            return "Error: OpenAI Authentication Error. Check OPENAI_API_KEY."
+        except openai.RateLimitError as e:
+            print("❌ OpenAI Rate Limit Error (Quota Exceeded).")
+            # This is the error you are seeing
+            return "Error: OpenAI Quota Exceeded. Please check billing."
+        except Exception as e:
+            print(f"❌ OpenAI STT error: {e}")
+            openai_error = str(e)
 
-# --- Legacy Compatibility Functions ---
-# Keeps the code compatible if other parts call these specific names
+    # --- If both fail ---
+    print("❌ Both Groq and OpenAI transcription failed.")
+    if not groq_api_valid and not openai_api_valid:
+        return "Error: No speech-to-text API keys are configured (Groq or OpenAI)."
+    
+    # Return the most specific error we have
+    if openai_error:
+        return f"OpenAI Error: {openai_error}"
+    if groq_error:
+        return f"Groq Error: {groq_error}"
+        
+    return "Error: Transcription failed for all available services."
+
+
+# --- Keep your other functions ---
+# They will automatically use the new resilient `speech_to_text` function above.
 
 def speech_to_text_gemini(audio_file: str, language: str = 'en-US') -> Optional[str]:
-    return speech_to_text(audio_file, language.split('-')[0])
+    """
+    (This function is no longer the primary one, but we keep it
+    and adapt it to use the new bytes-based function)
+    """
+    try:
+        with open(audio_file, 'rb') as f:
+            audio_bytes = f.read()
+        return speech_to_text(audio_bytes, language.split('-')[0])
+    except Exception as e:
+        print(f"❌ STT error: {e}")
+        return None
 
 def transcribe_audio_file(audio_path: str, language: str = 'en-US') -> Optional[str]:
-    result = speech_to_text(audio_path, language.split('-')[0])
-    
-    if result and not result.startswith("❌"):
-        try:
-            text_path = os.path.splitext(audio_path)[0] + ".txt"
+    """Transcribe audio file and save as text."""
+    try:
+        text = speech_to_text_gemini(audio_path, language)
+        
+        if text and not text.startswith("Error:"):
+            # Save transcription
+            text_path = audio_path.replace('.wav', '.txt').replace('.mp3', '.txt')
             with open(text_path, 'w', encoding='utf-8') as f:
-                f.write(result)
-            return result
-        except Exception:
-            return result # Return text even if saving failed
-    return None
+                f.write(text)
+            print(f"✅ Transcription saved: {text_path}")
+            return text
+        
+        return text # Return the error message if transcription failed
+        
+    except Exception as e:
+        print(f"❌ Transcription error: {e}")
+        return None

@@ -6,76 +6,26 @@ import base64
 from datetime import datetime
 from dotenv import load_dotenv
 
-# =========================================================
-# 🛡️ ROBUST SETUP: KEY LOADING & OPENAI "MASQUERADE"
-# =========================================================
-# This section MUST run before any other project imports.
-
-if hasattr(st, "secrets"):
-    # We explicitly check each key to ensure they are loaded correctly
-    # 1. DeepSeek (Logic)
-    if "DEEPSEEK_API_KEY" in st.secrets:
-        os.environ["DEEPSEEK_API_KEY"] = st.secrets["DEEPSEEK_API_KEY"]
-        
-    # 2. OpenRouter / Qwen (Writing)
-    if "OPENROUTER_API_KEY" in st.secrets:
-        os.environ["OPENROUTER_API_KEY"] = st.secrets["OPENROUTER_API_KEY"]
-        
-    # 3. Google Gemini (Context/PDFs)
-    if "GOOGLE_API_KEY" in st.secrets:
-        os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
-        
-    # 4. Search Tools
-    if "TAVILY_API_KEY" in st.secrets:
-        os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
-    if "SERPER_API_KEY" in st.secrets:
-        os.environ["SERPER_API_KEY"] = st.secrets["SERPER_API_KEY"]
-        
-    # 5. Groq (Backup)
-    if "GROQ_API_KEY" in st.secrets:
-        os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
-
-# --- 🛑 THE FIX: FORCE DEEPSEEK AS SYSTEM DEFAULT ---
-# This prevents the "OpenAI 401" error by redirecting system calls
-if os.getenv("DEEPSEEK_API_KEY"):
-    # ✅ OPTION A: DeepSeek V3 (Primary)
-    os.environ["OPENAI_API_KEY"] = os.environ["DEEPSEEK_API_KEY"]
-    os.environ["OPENAI_API_BASE"] = "https://api.deepseek.com"
-    os.environ["OPENAI_MODEL_NAME"] = "deepseek-chat"
-    
-elif os.getenv("OPENROUTER_API_KEY"):
-    # ✅ OPTION B: OpenRouter/Qwen (Backup)
-    os.environ["OPENAI_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
-    os.environ["OPENAI_API_BASE"] = "https://openrouter.ai/api/v1"
-    os.environ["OPENAI_MODEL_NAME"] = "qwen/qwen-2.5-72b-instruct"
-    
-elif os.getenv("GROQ_API_KEY"):
-    # ⚠️ OPTION C: Groq (Emergency)
-    os.environ["OPENAI_API_KEY"] = os.environ["GROQ_API_KEY"]
-    os.environ["OPENAI_API_BASE"] = "https://api.groq.com/openai/v1"
-    os.environ["OPENAI_MODEL_NAME"] = "llama-3.3-70b-versatile"
-
-else:
-    # Last Resort
-    os.environ["OPENAI_API_KEY"] = "NA"
-
-# Disable Telemetry
+# --- MANDATORY LOCKDOWN: REDIRECT ALL OPENAI CALLS ---
+os.environ["OPENAI_API_BASE"] = "http://localhost:1234/v1" 
+os.environ["OPENAI_API_KEY"] = "NA"
 os.environ["OTEL_SDK_DISABLED"] = "true" 
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
-
-load_dotenv()
-
 # ---------------------------------------------------
-# 🚨 IMPORTS (MUST BE AFTER CONFIGURATION)
-# ---------------------------------------------------
+
 from src.crew.research_crew import ResearchCrew
 from src.llm.multi_provider import MultiProviderLLM
 from src.translation import get_supported_languages
 from src.database import get_all_research, get_research_by_id, delete_research_record
-from src.audio.stt import speech_to_text
-from src.utils.media_factory import generate_multilingual_assets
+from src.audio.stt import speech_to_text  
 from fpdf import FPDF
 from gtts import gTTS
+
+# ✅ NEW IMPORT: The Safe Media Factory
+from src.utils.media_factory import generate_multilingual_assets
+
+# Load environment variables
+load_dotenv()
 
 # Page config
 st.set_page_config(
@@ -85,7 +35,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- UTILITY FUNCTIONS ---
+# --- UTILITY: PDF PREVIEW EMBEDDER ---
 def display_pdf_preview(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -95,6 +45,7 @@ def display_pdf_preview(file_path):
     except Exception as e:
         st.error(f"Could not preview PDF: {e}")
 
+# --- ROBUST PDF GENERATOR (Kept for English) ---
 def generate_pdf(text, filename):
     try:
         pdf = FPDF()
@@ -111,13 +62,25 @@ def generate_pdf(text, filename):
         st.warning(f"Note: PDF generated with some character omissions. ({str(e)})")
         return None
 
-# --- CUSTOM CSS ---
+# --- ROBUST AUDIO GENERATOR (Legacy - Kept but superseded by Media Factory) ---
+def generate_audio(text, lang='en'):
+    try:
+        tts = gTTS(text=text[:3000], lang=lang, slow=False)
+        audio_path = "output/research_summary.mp3"
+        os.makedirs('output', exist_ok=True)
+        tts.save(audio_path)
+        return audio_path
+    except Exception as e:
+        st.error(f"TTS Error: {str(e)}")
+        return None
+
+# --- CUSTOM 2025 MODERN CSS ---
 st.markdown("""
     <style>
-    .main-header { font-size: 3rem; font-weight: bold; background: linear-gradient(120deg, #6a11cb, #2575fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 1rem; }
+    .main-header { font-size: 3rem; font-weight: bold; background: linear-gradient(120deg, #1E88E5, #00BCD4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 1rem; }
     .sub-header { font-size: 1.2rem; color: #666; text-align: center; margin-bottom: 2rem; }
-    .stButton>button { width: 100%; background: linear-gradient(120deg, #6a11cb, #2575fc); color: white; border: none; padding: 0.75rem; border-radius: 8px; transition: 0.3s; }
-    .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(106, 17, 203, 0.3); }
+    .stButton>button { width: 100%; background: linear-gradient(120deg, #1E88E5, #00BCD4); color: white; font-size: 1.1rem; padding: 0.75rem; border-radius: 8px; border: none; transition: all 0.3s ease; }
+    .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3); }
     .stCodeBlock { background-color: #0e1117 !important; border-radius: 10px; border: 1px solid #30363d; color: #d1d5db; }
     </style>
 """, unsafe_allow_html=True)
@@ -126,185 +89,252 @@ if 'research_topic' not in st.session_state:
     st.session_state.research_topic = ""
 
 # Header
-st.markdown('<div class="main-header">🧠 AutoResearch Pro</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Powered by DeepSeek V3, Qwen 2.5 & Gemini • Hybrid Architecture</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">🧠 AutoResearch Crew Pro</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">2025 Nuclear Architecture • Sequential Multi-Agent Intelligence</div>', unsafe_allow_html=True)
 
 # --- SIDEBAR CONFIGURATION ---
 with st.sidebar:
-    st.header("⚙️ Engine Status")
-    
-    # Live Key Check
-    key_status = {
-        "DeepSeek (Logic)": bool(os.getenv("DEEPSEEK_API_KEY")),
-        "Qwen (Writer)": bool(os.getenv("OPENROUTER_API_KEY")),
-        "Gemini (Reader)": bool(os.getenv("GOOGLE_API_KEY")),
-        "Tavily (Search)": bool(os.getenv("TAVILY_API_KEY"))
-    }
-    
-    # Display Status Icons
-    for provider, is_active in key_status.items():
-        if is_active:
-            st.write(f"✅ **{provider}**")
-        else:
-            st.write(f"❌ **{provider}**")
-
-    # Critical Warning
-    if not any(key_status.values()):
-        st.error("❌ Critical: No AI Models available! Check Streamlit Secrets.")
+    st.header("⚙️ Configuration")
+    critical_keys = {"Groq": os.getenv('GROQ_API_KEY'), "Google Gemini": os.getenv('GOOGLE_API_KEY'), "Tavily": os.getenv('TAVILY_API_KEY')}
+    missing_keys = [k for k, v in critical_keys.items() if not v]
+    if not missing_keys: st.success("✅ Environment configured")
+    else: st.error(f"❌ Missing: {', '.join(missing_keys)}")
 
     st.divider()
     page = st.radio("📑 Navigation", ["🔍 New Research", "📚 Research History", "🎤 Voice Input", "⚙️ Settings"])
+    
+    st.divider()
+    
+    # --- LLM PROVIDER STATUS (Restored) ---
+    st.header("🤖 LLM Provider Status")
+    llm_manager = MultiProviderLLM()
+    active_providers = llm_manager.providers_available 
+
+    if active_providers:
+        st.success(f"✅ {len(active_providers)} provider(s) active")
+        for p_id in active_providers:
+            p_data = llm_manager.PROVIDERS.get(p_id, {"name": p_id.title(), "priority": 0})
+            with st.expander(f"🔹 {p_data['name']}"):
+                st.write(f"**Priority:** Level {p_data['priority']}")
+                st.write(f"**Status:** Online")
+    else:
+        st.error("❌ No LLM providers found.")
 
 # --- MAIN CONTENT ---
 if page == "🔍 New Research":
     col1, col2 = st.columns([2, 1])
     with col1:
         st.header("🔍 Research Topic")
-        use_voice = st.checkbox("🎤 Live Voice Input", value=False)
+        use_voice = st.checkbox("🎤 Use Live Voice Input", value=False)
         if use_voice:
-            audio_data = st.audio_input("Speak topic:")
-            if audio_data:
+            audio_data = st.audio_input("Speak your topic:")
+            if audio_data is not None:
                 with st.spinner("Transcribing..."):
                     st.session_state.research_topic = speech_to_text(audio_data.read())
-                    st.success("Transcribed!")
+                    st.success(f"Transcribed: {st.session_state.research_topic}")
 
-        topic = st.text_input("Enter Topic:", value=st.session_state.research_topic, placeholder="e.g. Future of Solid State Batteries")
+        topic = st.text_input("Enter your research goal:", value=st.session_state.research_topic, placeholder="e.g. Future of Mars Colonization")
 
-        # Quick Start Buttons
-        st.caption("💡 **Quick Examples:**")
+        # Examples
+        st.caption("💡 **Quick Start Examples:**")
+        examples = ["Impact of LLMs on modern education", "Latest breakthroughs in Fusion Energy 2025", "Sustainability of EV Battery recycling"]
         ex_cols = st.columns(3)
-        if ex_cols[0].button("Quantum Computing"):
-            st.session_state.research_topic = "Quantum Computing Applications"
-            st.rerun()
-        if ex_cols[1].button("AI in Medicine"):
-            st.session_state.research_topic = "AI Agents in Healthcare"
-            st.rerun()
-        if ex_cols[2].button("Mars Terraforming"):
-            st.session_state.research_topic = "Feasibility of Mars Terraforming"
-            st.rerun()
+        for i, ex_text in enumerate(examples):
+            with ex_cols[i]:
+                if st.button(ex_text, key=f"ex_{i}", use_container_width=True):
+                    st.session_state.research_topic = ex_text
+                    st.rerun()
 
     with col2:
-        st.header("🎯 Settings")
-        all_langs = get_supported_languages()
+        st.header("🎯 Options")
+        all_languages = get_supported_languages()
+        supported_codes = ['en', 'hi', 'ar', 'es', 'fr']
+        supported_display = {k: v for k, v in all_languages.items() if k in supported_codes}
         
-        main_langs = {k:v for k,v in all_langs.items() if k in ['English', 'Hindi', 'Spanish', 'French', 'Arabic', 'German', 'Japanese', 'Chinese']}
-        if not main_langs:
-            main_langs = {'English': 'en'}
-        
-        sel_lang_name = st.selectbox("Language", list(main_langs.keys()))
-        sel_lang_code = main_langs[sel_lang_name]
-
-        export_pdf = st.checkbox("Export PDF", value=True)
+        selected_language = st.selectbox("🌍 Language", options=list(supported_display.keys()), format_func=lambda x: supported_display[x])
+        st.subheader("📤 Exports")
+        export_pdf = st.checkbox("Generate PDF Report", value=True)
+        export_audio = st.checkbox("Generate Voice Summary", value=True)
 
     st.divider()
 
-    # --- EXECUTION LOOP ---
-    if st.button("🚀 Start Deep Research", type="primary"):
+    # --- EXECUTION LOGIC ---
+    if st.button("🚀 Start Nuclear Research", type="primary"):
         if not topic:
-            st.error("Please provide a research topic.")
+            st.error("Please provide a topic first.")
         else:
+            st.session_state.research_topic = topic
+            
             try:
-                # Thread-safe Status Container
-                with st.status("🤖 Orchestrating AI Agents...", expanded=True) as s:
-                    st.write("🧠 **Planner (Qwen):** Designing research strategy...")
-                    st.write("🕵️ **Researcher (DeepSeek):** Scouring the web...")
-                    st.write("🧐 **Analyst (DeepSeek):** Verifying data patterns...")
-                    st.write("✅ **Fact Checker (DeepSeek):** Validating information...")
-                    st.write("✍️ **Writer (Qwen):** Drafting final report...")
+                # Use standard Status Spinner (Thread-Safe)
+                with st.status("🤖 Agents are working...", expanded=True) as status:
+                    st.write("🔄 Initializing Specialist Agents...")
+                    st.write("📡 Connecting to Knowledge Base...")
                     
-                    # Initialize Crew
-                    crew = ResearchCrew(topic, sel_lang_code)
-                    results = crew.run()
+                    crew_engine = ResearchCrew(topic=topic, language=selected_language, show_logs=True)
+                    results = crew_engine.run()
                     
-                    s.update(label="✅ Mission Complete!", state="complete", expanded=False)
+                    status.update(label="✅ All Agents Finished!", state="complete", expanded=False)
 
                 if results and 'report_path' in results:
-                    st.success("Research Successfully Completed!")
+                    st.success("✅ Research Completed Successfully!")
                     
-                    # Generate Media Assets (Translations/Audio)
-                    with st.spinner("Generating Multilingual Assets..."):
-                        assets = generate_multilingual_assets(results['report_path'])
+                    # --- NEW: GENERATE MULTILINGUAL ASSETS (TEXT + AUDIO) ---
+                    # This runs the new robust factory that does not depend on OpenAI
+                    with st.spinner("🎧 Generating Multilingual Audio & Reports (En, Hi, Ar, Es, Fr)..."):
+                        multilingual_data = generate_multilingual_assets(results['report_path'])
 
-                    # Display Tabs
-                    t1, t2, t3 = st.tabs(["📝 Final Report", "📄 PDF Document", "🌍 Multilingual Hub"])
-                    
-                    # Tab 1: Markdown
-                    with t1:
+                    # --- OUTPUT TABS ---
+                    # We renamed the third tab to reflect its new powers
+                    tab1, tab2, tab3 = st.tabs(["📝 English Report", "📄 PDF Preview", "🌍 Multilingual Hub"])
+
+                    # TAB 1: Main English Markdown
+                    with tab1:
                         if os.path.exists(results['report_path']):
                             with open(results['report_path'], 'r', encoding='utf-8') as f:
-                                markdown_text = f.read()
-                            st.markdown(markdown_text)
-                            st.download_button("Download Markdown", markdown_text, file_name="report.md")
+                                report_content = f.read()
+                            st.markdown(report_content)
+                            st.download_button("📥 Download Markdown", report_content, file_name=os.path.basename(results['report_path']))
+                        else:
+                            st.error("Report file missing.")
 
-                    # Tab 2: PDF
-                    with t2:
-                        if export_pdf:
+                    # TAB 2: English PDF Preview
+                    with tab2:
+                        if export_pdf and os.path.exists(results['report_path']):
                             pdf_path = results['report_path'].replace(".md", ".pdf")
+                            # Generate PDF using the FPDF function (good for English)
                             if not os.path.exists(pdf_path):
-                                generate_pdf(markdown_text, pdf_path)
+                                with st.spinner("Generating professional PDF..."):
+                                    with open(results['report_path'], 'r', encoding='utf-8') as f:
+                                        content_for_pdf = f.read()
+                                    generate_pdf(content_for_pdf, pdf_path)
                             
                             if os.path.exists(pdf_path):
                                 display_pdf_preview(pdf_path)
                                 with open(pdf_path, "rb") as f:
-                                    st.download_button("Download PDF Report", f, file_name="report.pdf")
+                                    st.download_button("📥 Download Full PDF Report", f, file_name=os.path.basename(pdf_path), mime="application/pdf")
                             else:
                                 st.warning("PDF generation failed.")
                         else:
-                            st.info("PDF Export disabled.")
+                            st.info("PDF generation disabled or source file missing.")
 
-                    # Tab 3: Multilingual & Audio
-                    with t3:
-                        if assets:
-                            l_key = st.selectbox("Select Output Language", list(assets.keys()))
-                            data = assets[l_key]
+                    # TAB 3: THE NEW ROBUST AUDIO & TRANSLATION HUB
+                    with tab3:
+                        if multilingual_data:
+                            st.write("### 🌐 Select Language")
                             
-                            c1, c2 = st.columns(2)
-                            with c1: 
-                                st.subheader("🎧 Audio")
-                                if os.path.exists(data['audio_path']): 
-                                    st.audio(data['audio_path'])
-                                    with open(data['audio_path'], "rb") as f:
-                                        st.download_button("Download Audio", f, file_name=f"audio_{l_key}.mp3")
-                                else:
-                                    st.info("Audio unavailable.")
+                            # 1. Language Selector
+                            selected_lang_key = st.selectbox("Choose a language:", list(multilingual_data.keys()))
+                            
+                            # 2. Get Data Safe Check
+                            lang_data = multilingual_data.get(selected_lang_key)
+                            
+                            if lang_data:
+                                col1, col2 = st.columns([1, 1])
                                 
-                            with c2:
-                                st.subheader("📄 Report")
-                                if os.path.exists(data['report_path']):
-                                    with open(data['report_path'], 'rb') as f:
-                                        st.download_button(f"Download {l_key} Text", f, file_name=f"report_{l_key}.md")
-                                else:
-                                    st.info("Translation unavailable.")
+                                # --- Audio Section ---
+                                with col1:
+                                    st.subheader("🎧 Audio Summary")
+                                    if os.path.exists(lang_data['audio_path']):
+                                        st.audio(lang_data['audio_path'])
+                                        with open(lang_data['audio_path'], "rb") as audio_file:
+                                            st.download_button(
+                                                label=f"⬇️ Download Audio ({selected_lang_key})",
+                                                data=audio_file,
+                                                file_name=f"Audio_{selected_lang_key}.mp3",
+                                                mime="audio/mp3"
+                                            )
+                                    else:
+                                        st.info("Audio generation skipped for this language.")
+
+                                # --- Report Section (Replaces PDF for complex languages) ---
+                                with col2:
+                                    st.subheader("📄 Translated Report")
+                                    if os.path.exists(lang_data['report_path']):
+                                        st.success(f"Translation ready.")
+                                        with open(lang_data['report_path'], "rb") as report_file:
+                                            st.download_button(
+                                                label=f"⬇️ Download Report ({selected_lang_key})",
+                                                data=report_file,
+                                                file_name=f"Report_{selected_lang_key}.md",
+                                                mime="text/markdown"
+                                            )
+                                    else:
+                                         st.warning("Translation file unavailable.")
+
+                                # --- Text Preview ---
+                                st.divider()
+                                st.caption(f"Text Preview ({selected_lang_key}):")
+                                st.text_area(label="Generated Report", value=lang_data['text'], height=300)
                             
-                            st.divider()
-                            st.text_area("Translation Preview", data['text'], height=200)
                         else:
-                            st.warning("Multilingual assets not available.")
-
+                            st.warning("Multilingual assets could not be generated. Please check your internet connection.")
+                else:
+                    st.error("Crew failed to produce a final report.")
+            
             except Exception as e:
-                st.error(f"Execution Error: {str(e)}")
+                st.error(f"❌ Execution Stopped: {str(e)}")
 
-# --- HISTORY PAGE ---
+# --- OTHER PAGES ---
 elif page == "📚 Research History":
-    st.header("Archives")
-    history = get_all_research(limit=10)
-    if history:
-        for h in history:
-            with st.expander(f"📅 {h.created_at.strftime('%Y-%m-%d %H:%M')} - {h.topic}"):
-                st.write(f"**Status:** {h.status}")
-                if h.report_path and os.path.exists(h.report_path):
-                    with open(h.report_path, 'r', encoding='utf-8') as f:
-                        st.text_area("Snippet", f.read()[:300]+"...", height=100)
+    st.header("📚 Research History")
+    # FIX: Add a refresh button and clear cache to force database sync
+    if st.button("🔄 Refresh History"):
+        st.cache_data.clear()
+        st.rerun()
+
+    history = get_all_research(limit=50)
+    if not history: 
+        st.info("No research history found.")
     else:
-        st.info("No history found.")
+        for record in history:
+            # Displaying history with clickable expanders
+            with st.expander(f"🕒 {record.created_at.strftime('%Y-%m-%d %H:%M')} | {record.topic}"):
+                st.write(f"**Status:** {record.status}")
+                if record.report_path and os.path.exists(record.report_path):
+                    st.info(f"File Path: {record.report_path}")
+                    with open(record.report_path, 'r', encoding='utf-8') as f:
+                        st.text_area("Preview", f.read()[:500] + "...", height=150, key=f"hist_{record.id}")
 
-# --- SETTINGS PAGE ---
+elif page == "🎤 Voice Input":
+    st.header("🎤 Voice Command Center")
+    st.info("Record your voice or upload an audio file to auto-fill the search bar.")
+
+    # Implementation of Tabs for dual-mode input
+    v_tab1, v_tab2 = st.tabs(["🔴 Live Record", "📁 Upload Audio"])
+
+    with v_tab1:
+        v_audio = st.audio_input("Record your request:")
+        if v_audio:
+            with st.spinner("Transcribing live audio..."):
+                # Pass raw bytes from the recorder
+                text = speech_to_text(v_audio.read())
+                if text:
+                    st.session_state.research_topic = text
+                    st.success(f"Recognized: {text}")
+
+    with v_tab2:
+        v_upload = st.file_uploader("Upload MP3/WAV file", type=["mp3", "wav", "m4a", "ogg"])
+        if v_upload:
+            with st.spinner("Transcribing uploaded file..."):
+                # Pass raw bytes from the uploaded file
+                text = speech_to_text(v_upload.read())
+                if text:
+                    st.session_state.research_topic = text
+                    st.success(f"Recognized: {text}")
+
+    # Unified Action Button
+    if st.session_state.get("research_topic"):
+        if st.button("Use this topic for Research"):
+            st.rerun()
+
 elif page == "⚙️ Settings":
-    st.header("System Configuration")
-    st.json(key_status)
-    st.write("---")
-    st.write("**Architecture:** Hybrid Cloud (DeepSeek + Qwen + Gemini)")
-    st.write("**Version:** 2.2.0 (Writer-Last Edition)")
+    st.header("⚙️ Configuration Status")
+    # Display keys status
+    st.json({k: "✅ Active" if v else "❌ Missing" for k, v in critical_keys.items()})
+    st.write(f"**Virtual Environment:** `venv311` | **Python:** {sys.version.split()[0]}")
+    st.write("**Framework:** CrewAI 1.6.1 + LiteLLM Bridge")
 
+# Footer
 st.divider()
-st.markdown("<center>AutoResearch Crew Pro • 2025 Architecture</center>", unsafe_allow_html=True)
+st.markdown("<center>AutoResearch Crew Pro • 2025 Nuclear Architecture • Sequential Pipeline</center>", unsafe_allow_html=True)

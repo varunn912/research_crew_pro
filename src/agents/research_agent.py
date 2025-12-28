@@ -1,12 +1,13 @@
 import os
-from typing import Type
+import yaml
+from typing import List, Type
 from pydantic import BaseModel, Field
 from crewai import Agent
 from crewai.tools import BaseTool
 from langchain_community.tools import DuckDuckGoSearchRun
 from src.llm.multi_provider import get_researcher_llm
 
-# --- 1. DEFINE TOOLS (Preserved Custom Logic) ---
+# --- INTERNAL TOOLS ---
 
 class WebSearchInput(BaseModel):
     query: str = Field(..., description="The search query for Tavily.")
@@ -19,11 +20,7 @@ class WebSearchTool(BaseTool):
     def _run(self, query: str) -> str:
         try:
             from tavily import TavilyClient
-            api_key = os.getenv("TAVILY_API_KEY")
-            if not api_key:
-                return "Error: TAVILY_API_KEY is missing."
-                
-            client = TavilyClient(api_key=api_key)
+            client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
             response = client.search(query=query, search_depth="advanced", include_answer=True, max_results=5)
             results = []
             if response.get('answer'):
@@ -35,6 +32,10 @@ class WebSearchTool(BaseTool):
             return f"Web search error: {str(e)}"
 
 class DuckDuckGoTool(BaseTool):
+    """
+    A custom wrapper for LangChain's DuckDuckGoSearchRun to ensure 
+    Pydantic V2 compatibility with CrewAI Agents.
+    """
     name: str = "duckduckgo_search"
     description: str = "Search the web using DuckDuckGo for current events and information."
 
@@ -45,26 +46,34 @@ class DuckDuckGoTool(BaseTool):
         except Exception as e:
             return f"DuckDuckGo search error: {str(e)}"
 
-# --- 2. AGENT CLASS ---
+# --- AGENT CREATION ---
 
-class ResearchAgent:
-    def get_agent(self):
-        # Initialize the tools
-        search_tool_tavily = WebSearchTool()
-        search_tool_ddg = DuckDuckGoTool()
+def create_research_agent(topic: str, show_logs: bool = True) -> Agent:
+    """
+    Fixed Researcher Agent: Ensures all tools are valid BaseTool instances.
+    """
+    try:
+        with open('config/agents.yaml', 'r') as f:
+            config = yaml.safe_load(f)['research_agent']
+    except:
+        config = {'role': 'Senior Researcher', 'goal': f'Research {topic}', 'backstory': 'Expert investigator.'}
 
-        # Connect to the correct LLM (DeepSeek/Qwen via Router)
-        llm = get_researcher_llm()
+    # Initialize tools as CrewAI BaseTool instances to avoid Pydantic validation errors
+    # Note: Using the custom wrappers we defined above
+    search_tool_tavily = WebSearchTool()
+    search_tool_ddg = DuckDuckGoTool()
+    
+    # Get the specific LLM instance for this agent
+    llm = get_researcher_llm() 
 
-        return Agent(
-            role='Senior Research Analyst',
-            goal='Uncover cutting-edge developments, verified facts, and comprehensive data on the given topic.',
-            backstory="""You are an elite research analyst with a keen eye for detail. 
-            You specialize in digging deep into complex topics to find the most relevant, 
-            accurate, and up-to-date information available. You ignore superficial summaries 
-            and look for raw data and primary sources.""",
-            verbose=True,
-            allow_delegation=False,
-            llm=llm,
-            tools=[search_tool_tavily, search_tool_ddg]
-        )
+    return Agent(
+        role=config['role'],
+        goal=config['goal'].format(topic=topic),
+        backstory=config['backstory'],
+        llm=llm,
+        # PASSING TOOLS: All items in this list are now instances of BaseTool
+        tools=[search_tool_tavily, search_tool_ddg], 
+        verbose=show_logs,
+        allow_delegation=False,
+        memory=True
+    )

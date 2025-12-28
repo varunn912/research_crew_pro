@@ -1,15 +1,15 @@
-from .research_agent import ResearchAgent
-from .summarizer_agent import SummarizerAgent
-from .fact_checker_agent import FactCheckerAgent
-from .trend_analyst_agent import TrendAnalystAgent
-from .report_writer_agent import ReportWriterAgent
-from .content_extractor_agent import ContentExtractorAgent
+from .research_agent import create_research_agent
+from .summarizer_agent import create_summarizer_agent
+from .fact_checker_agent import create_fact_checker_agent
+from .trend_analyst_agent import create_trend_analyst_agent
+from .report_writer_agent import create_report_writer_agent
+from .content_extractor_agent import create_content_extractor_agent
 
 __all__ = [
-    'ResearchAgent',
-    'SummarizerAgent',
-    'FactCheckerAgent',
-    'TrendAnalystAgent',
-    'ReportWriterAgent',
-    'ContentExtractorAgent'
+    'create_research_agent',
+    'create_summarizer_agent',
+    'create_fact_checker_agent',
+    'create_trend_analyst_agent',
+    'create_report_writer_agent',
+    'create_content_extractor_agent'
 ]
