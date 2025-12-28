@@ -18,27 +18,32 @@ if hasattr(st, "secrets"):
     if "GOOGLE_API_KEY" in st.secrets:
         os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
         
-    # 3. Tavily API Key (Crucial for search)
+    # 3. Tavily API Key
     if "TAVILY_API_KEY" in st.secrets:
         os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
     
-    # 4. Serper API Key (Backup search)
+    # 4. Serper API Key
     if "SERPER_API_KEY" in st.secrets:
         os.environ["SERPER_API_KEY"] = st.secrets["SERPER_API_KEY"]
 
-# --- OPTIONAL: Load local .env if running on laptop ---
+# --- OPTIONAL: Load local .env ---
 load_dotenv()
 
 # =========================================================
-# 🛑 LOOP BREAKER: DUMMY OPENAI KEY
+# 🎭 THE GROQ MASQUERADE (FIX FOR ERROR 401)
 # =========================================================
-# CrewAI throws "Error importing native provider" if this is missing.
-# We set it to "NA" to pass the startup check. 
-# Since we use 'groq/' and 'gemini/' models, this key is NEVER used.
-if "OPENAI_API_KEY" not in os.environ:
+# If CrewAI tries to default to OpenAI, we redirect it to Groq.
+# This prevents the "Incorrect API Key" crash by giving it a working path.
+
+if "GROQ_API_KEY" in os.environ:
+    os.environ["OPENAI_API_KEY"] = os.environ["GROQ_API_KEY"]
+    os.environ["OPENAI_API_BASE"] = "https://api.groq.com/openai/v1"
+    os.environ["OPENAI_MODEL_NAME"] = "llama-3.3-70b-versatile"
+else:
+    # Last resort fallback if Groq is missing (prevents crash, might fail later)
     os.environ["OPENAI_API_KEY"] = "NA"
 
-# --- MANDATORY LOCKDOWN: DISABLE TELEMETRY ---
+# --- DISABLE TELEMETRY ---
 os.environ["OTEL_SDK_DISABLED"] = "true" 
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
@@ -72,13 +77,12 @@ def display_pdf_preview(file_path):
     except Exception as e:
         st.error(f"Could not preview PDF: {e}")
 
-# --- ROBUST PDF GENERATOR (Kept for English) ---
+# --- ROBUST PDF GENERATOR ---
 def generate_pdf(text, filename):
     try:
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
-        # Unicode Safety
         clean_text = text.encode('latin-1', 'ignore').decode('latin-1')
         clean_text = clean_text.replace('\u2013', '-').replace('\u2014', '-').replace('\u2019', "'")
         pdf.multi_cell(0, 10, clean_text)
@@ -103,7 +107,7 @@ def generate_audio(text, lang='en'):
         st.error(f"TTS Error: {str(e)}")
         return None
 
-# --- CUSTOM 2025 MODERN CSS ---
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
     .main-header { font-size: 3rem; font-weight: bold; background: linear-gradient(120deg, #1E88E5, #00BCD4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 1rem; }
@@ -139,7 +143,6 @@ with st.sidebar:
     try:
         llm_manager = MultiProviderLLM()
         active_providers = llm_manager.providers_available 
-
         if active_providers:
             st.success(f"✅ {len(active_providers)} provider(s) active")
             for p_id in active_providers:
@@ -196,7 +199,6 @@ if page == "🔍 New Research":
             st.error("Please provide a topic first.")
         else:
             st.session_state.research_topic = topic
-            
             try:
                 with st.status("🤖 Agents are working...", expanded=True) as status:
                     st.write("🔄 Initializing Specialist Agents...")
@@ -204,20 +206,15 @@ if page == "🔍 New Research":
                     
                     crew_engine = ResearchCrew(topic=topic, language=selected_language, show_logs=True)
                     results = crew_engine.run()
-                    
                     status.update(label="✅ All Agents Finished!", state="complete", expanded=False)
 
                 if results and 'report_path' in results:
                     st.success("✅ Research Completed Successfully!")
-                    
-                    # --- GENERATE ASSETS ---
                     with st.spinner("🎧 Generating Multilingual Audio & Reports..."):
                         multilingual_data = generate_multilingual_assets(results['report_path'])
 
-                    # --- OUTPUT TABS ---
                     tab1, tab2, tab3 = st.tabs(["📝 English Report", "📄 PDF Preview", "🌍 Multilingual Hub"])
 
-                    # TAB 1: Main Markdown
                     with tab1:
                         if os.path.exists(results['report_path']):
                             with open(results['report_path'], 'r', encoding='utf-8') as f:
@@ -227,7 +224,6 @@ if page == "🔍 New Research":
                         else:
                             st.error("Report file missing.")
 
-                    # TAB 2: PDF Preview
                     with tab2:
                         if export_pdf and os.path.exists(results['report_path']):
                             pdf_path = results['report_path'].replace(".md", ".pdf")
@@ -236,7 +232,6 @@ if page == "🔍 New Research":
                                     with open(results['report_path'], 'r', encoding='utf-8') as f:
                                         content_for_pdf = f.read()
                                     generate_pdf(content_for_pdf, pdf_path)
-                            
                             if os.path.exists(pdf_path):
                                 display_pdf_preview(pdf_path)
                                 with open(pdf_path, "rb") as f:
@@ -244,18 +239,15 @@ if page == "🔍 New Research":
                             else:
                                 st.warning("PDF generation failed.")
                         else:
-                            st.info("PDF generation disabled or source file missing.")
+                            st.info("PDF generation disabled.")
 
-                    # TAB 3: Multilingual Hub
                     with tab3:
                         if multilingual_data:
                             st.write("### 🌐 Select Language")
                             selected_lang_key = st.selectbox("Choose a language:", list(multilingual_data.keys()))
                             lang_data = multilingual_data.get(selected_lang_key)
-                            
                             if lang_data:
                                 col1, col2 = st.columns([1, 1])
-                                
                                 with col1:
                                     st.subheader("🎧 Audio Summary")
                                     if os.path.exists(lang_data['audio_path']):
@@ -264,7 +256,6 @@ if page == "🔍 New Research":
                                             st.download_button("⬇️ Download Audio", audio_file, file_name=f"Audio_{selected_lang_key}.mp3", mime="audio/mp3")
                                     else:
                                         st.info("Audio skipped.")
-
                                 with col2:
                                     st.subheader("📄 Translated Report")
                                     if os.path.exists(lang_data['report_path']):
@@ -273,7 +264,6 @@ if page == "🔍 New Research":
                                             st.download_button("⬇️ Download Report", report_file, file_name=f"Report_{selected_lang_key}.md", mime="text/markdown")
                                     else:
                                         st.warning("Translation unavailable.")
-
                                 st.divider()
                                 st.caption(f"Text Preview ({selected_lang_key}):")
                                 st.text_area("", lang_data['text'], height=300)
@@ -316,6 +306,5 @@ elif page == "⚙️ Settings":
     st.write("**Virtual Environment:** `venv311`")
     st.write("**Framework:** CrewAI 1.6.1 + LiteLLM Bridge")
 
-# Footer
 st.divider()
 st.markdown("<center>AutoResearch Crew Pro • 2025 Nuclear Architecture • Sequential Pipeline</center>", unsafe_allow_html=True)
