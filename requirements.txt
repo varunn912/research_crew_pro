@@ -22,3 +22,4 @@ pydub
 youtube-transcript-api
 yt-dlp
 SQLAlchemy
+Markdown
