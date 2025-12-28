@@ -28,6 +28,13 @@ class MultiProviderLLM:
 
     def __init__(self, temperature: float = 0.7):
         self.temperature = temperature
+        
+        # 🟢 RESTORED: Status check for app.py dashboard
+        self.providers_available = []
+        if os.getenv("GROQ_API_KEY"):
+            self.providers_available.append("groq")
+        if os.getenv("GOOGLE_API_KEY"):
+            self.providers_available.append("gemini")
 
     # ---------- GROQ (With Rate Limit Protection) ----------
     def groq(self):
