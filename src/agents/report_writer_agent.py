@@ -5,12 +5,14 @@ from src.llm.multi_provider import get_gemini_llm
 from src.export.google_docs import GoogleDocsTool
 from src.export.notion import NotionTool
 
+
 class ReportWriterAgent:
     def get_agent(self, topic: str, show_logs: bool = True) -> Agent:
         """
         Final agent in the hierarchy. Compiles verified research into a 
         polished report and can trigger optional export tools.
         """
+
         # --- 1. CONFIG LOGIC ---
         try:
             with open('config/agents.yaml', 'r') as f:
@@ -24,21 +26,20 @@ class ReportWriterAgent:
 
         # --- 2. OPTIONAL TOOL INITIALIZATION ---
         export_tools = []
-        
-        # Safe-load Google Docs
+
+        # Google Docs
         try:
-            # Check for API key before adding to prevent crash
             if os.getenv("GOOGLE_DOCS_TOKEN") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
                 export_tools.append(GoogleDocsTool())
         except Exception:
-            pass # Leave tool out if it fails to initialize
+            pass
 
-        # Safe-load Notion
+        # Notion
         try:
             if os.getenv("NOTION_TOKEN") or os.getenv("CREWAI_PLATFORM_INTEGRATION_TOKEN"):
                 export_tools.append(NotionTool())
         except Exception:
-            pass # Proceed without Notion if connection fails
+            pass
 
         # --- 3. AGENT DEFINITION ---
         llm = get_gemini_llm(temperature=0.7)
@@ -52,9 +53,14 @@ class ReportWriterAgent:
                 "If export tools are available, use them to save the final report."
             ),
             llm=llm,
-            tools=export_tools, # Safe tool list (contains 0 to 2 tools)
+            tools=export_tools,
             verbose=show_logs,
             allow_delegation=False,
             memory=True,
             multimodal=True
         )
+
+
+# ✅ FIX: Add factory function expected by your project
+def create_report_writer_agent(topic: str, show_logs: bool = True) -> Agent:
+    return ReportWriterAgent().get_agent(topic, show_logs)
